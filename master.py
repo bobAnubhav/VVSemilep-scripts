@@ -85,7 +85,7 @@ error = {output_dir}/condor_logs/$(ClusterId).$(ProcId).err
 log = {output_dir}/condor_logs/$(ClusterId).log
 
 # Queue
-+JobFlavour = "10 minutes"
++JobFlavour = "espresso"
 +queue="short"
 
 # Retry failed jobs
@@ -545,7 +545,7 @@ def plot_naive_bin_yields(config : SingleChannelConfig, filename : str):
     Plots the bin-by-bin yields taken by just doing Data - Bkgs.
     '''
     ### Adjusted bins ###
-    bins = utils.get_adjusted_bins(config.lepton_channel, config.variable)
+    bins = config.bins #utils.get_adjusted_bins(config.lepton_channel, config.variable)
 
     ### Get hists ###
     f_gpr = ROOT.TFile(f'{config.gbl.output_dir}/gpr/gpr_{config.lepton_channel}lep_vjets_yield.root')
@@ -586,7 +586,7 @@ def plot_plu_yields(config : SingleChannelConfig, plu_fit_results, filename : st
     Uses [plot_yield_comparison] to plot the PLU unfolded result against the fiducial MC.
     '''
     ### Adjusted bins ###
-    bins = utils.get_adjusted_bins(config.lepton_channel, config.variable)
+    bins = config.bins #utils.get_adjusted_bins(config.lepton_channel, config.variable)
 
     ### Fit ###
     h_fit = ROOT.TH1F('h_fit', '', len(bins) - 1, bins)
@@ -601,10 +601,17 @@ def plot_plu_yields(config : SingleChannelConfig, plu_fit_results, filename : st
     if 'v3' in config.gbl.file_manager.file_path_formats[0]:
         plot.warning('master.py::plot_plu_yields() Not using v3 histograms with buggy response matrix. Using hardcoded local path!')
         temp_file_manager = utils.FileManager(
-            samples=[utils.Sample.diboson, utils.Sample.cw_lin, utils.Sample.cw_quad],
-            file_path_formats=['../../{lep}/{lep}_{sample}_x_Feb24-ANN.hists.root'],
-            lepton_channels=[0, 1, 2],
+        samples=[utils.Sample.diboson],#, utils.Sample.cw_lin, utils.Sample.cw_quad],
+        file_path_formats=['/eos/user/a/anubhav/phd/cxAOD_out_grid/hist_28July/1lep_diboson_hist.root'], # histogram with correct response matrx with correct fiducial weight 
+        lepton_channels=[1]#[0, 1, 2],
         )
+        # for cw lin and quad 
+        temp_file_manager2 = utils.FileManager(
+        samples=[utils.Sample.cw_lin, utils.Sample.cw_quad],
+        file_path_formats= ['/afs/cern.ch/user/a/anubhav/private/Riley_VVsemilep/VVSemilep-scripts/ hists-May24/{lep}_{sample}_x_May24.hists.root'],
+        lepton_channels=[0,1,2]
+        )
+
     else:
         temp_file_manager = config.gbl.file_manager
     def get(sample):
@@ -615,6 +622,8 @@ def plot_plu_yields(config : SingleChannelConfig, plu_fit_results, filename : st
     h_mc = get(utils.Sample.diboson)
 
     ### EFT ###
+    # Changed file_manager to May-hist for lin and quad cw I dont have it yet 
+    temp_file_manager = temp_file_manager2 
     cw = 0.12
     h_cw_quad = get(utils.Sample.cw_quad)
     h_cw_lin = get(utils.Sample.cw_lin)
@@ -656,7 +665,7 @@ def plot_mc_gpr_stack(
     Plots a stack plot comparing data to MC backgrounds and the GPR V+jets estimate.
     '''
     ### Adjusted bins ###
-    bins = utils.get_adjusted_bins(config.lepton_channel, config.variable)
+    bins = config.bins #utils.get_adjusted_bins(config.lepton_channel, config.variable)
 
     ### Get hists ###
     f_gpr = ROOT.TFile(f'{config.gbl.output_dir}/gpr/gpr_{config.lepton_channel}lep_vjets_yield.root')
@@ -767,7 +776,7 @@ def plot_plu_fit(config : SingleChannelConfig, fit_results : dict[str, tuple[flo
     ######################################################################################
     
     ### Adjusted bins ###
-    bins = utils.get_adjusted_bins(config.lepton_channel, config.variable)
+    bins = config.bins #utils.get_adjusted_bins(config.lepton_channel, config.variable)
 
     ### GPR ###
     f_gpr = ROOT.TFile(f'{config.gbl.output_dir}/gpr/gpr_{config.lepton_channel}lep_vjets_yield.root')
@@ -2108,7 +2117,7 @@ def parse_args():
     parser.add_argument('--asimov', action='store_true', help="Use asimov data instead. Will look for files using [data-asimov] as the naming key instead of [data]. Create asimov data easily using make_asimov.py")
     parser.add_argument('--run-plu-val', action='store_true', help="Runs a PLU validation test by varying the data histogram and performing the entire PLU fit multiple times.")
     parser.add_argument('--condor', action='store_true', help="Runs the GPR fits via HT Condor. Merge the results using merge_gpr_condor.py, then recall master.py using --skip-gpr.")
-    parser.add_argument('--mu-stop', default='1,0.2', help="The stop signal strength. Should be a comma-separated pair val,err.")
+    parser.add_argument('--mu-stop', default='1,0.05', help="The stop signal strength. Should be a comma-separated pair val,err.")
     parser.add_argument('--channels', default='0,1,2', help="The lepton channels to run over, separated by commas.")
     parser.add_argument('--variables', default='vv_m-mT', help="A tag (see ChannelConfig) that sets the variables to run over.")
     return parser.parse_args()
