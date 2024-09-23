@@ -203,7 +203,7 @@ class GprSubmitMaker(CondorSubmitMaker):
         self.f.write(' '.join(input_paths))
         self.f.write(f' --lepton {fit_config.lepton_channel}')
         self.f.write(f' --var {fit_config.var}')
-        self.f.write(f' --output {output_path}')
+        self.f.write(f' --output {output_path}') # changed by Anubhav
         if self.config.is_asimov:
             self.f.write(f' --closure-test')
         self.f.write(f' --variation {fit_config.variation}')
@@ -294,8 +294,10 @@ def plot_gpr_mu_diboson_correlations(
 
             h = h.Clone()
             for i in range(h.GetN()):
-                delta_delta = (h.GetPointY(i) - h_nom.GetPointY(i)) / h_nom.GetPointY(i) / (1 - mu)
+                # delta_delta = (h.GetPointY(i) - h_nom.GetPointY(i)) / h_nom.GetPointY(i) / (1 - mu)
+                delta_delta = (h.GetPointY(i) - h_nom.GetPointY(i)) / h_nom.GetPointY(i)
                 average_corr_factor[i] += (h.GetPointY(i) - h_nom.GetPointY(i)) / (1 - mu)
+                print(f"corrfactorper{mu} per bin{i} {(h.GetPointY(i) - h_nom.GetPointY(i)) / (1 - mu)}")
                 h.SetPointY(i, delta_delta)
                 h.SetPointEYhigh(i, 0)
                 h.SetPointEYlow(i, 0)
@@ -313,16 +315,16 @@ def plot_gpr_mu_diboson_correlations(
         ],
         legend=legend,
         ytitle='Events',
-        ytitle2='#frac{#DeltaFit / Fit_{nom}}{#Delta#mu}',
+        ytitle2='#frac{#DeltaFit / Fit_{nom}}{}',##Delta#mu
         xtitle=f'{config.var:title}',
         edge_labels=[str(x) for x in config.bins_y],
         subplot2=subplot,
         subplot3=None,
         opts2='P',
-        y_range2=[0, 0.18],
+        y_range2=[0,0.05],
         ydivs2=503,
     )
-
+    print(f"average correc tion factor {average_corr_factor / len(yields)}")
     return average_corr_factor / len(yields)
 
 
@@ -545,7 +547,7 @@ def plot_naive_bin_yields(config : SingleChannelConfig, filename : str):
     Plots the bin-by-bin yields taken by just doing Data - Bkgs.
     '''
     ### Adjusted bins ###
-    bins = config.bins #utils.get_adjusted_bins(config.lepton_channel, config.variable)
+    bins = config.bins # utils.get_adjusted_bins(config.lepton_channel, config.variable)
 
     ### Get hists ###
     f_gpr = ROOT.TFile(f'{config.gbl.output_dir}/gpr/gpr_{config.lepton_channel}lep_vjets_yield.root')
@@ -586,7 +588,7 @@ def plot_plu_yields(config : SingleChannelConfig, plu_fit_results, filename : st
     Uses [plot_yield_comparison] to plot the PLU unfolded result against the fiducial MC.
     '''
     ### Adjusted bins ###
-    bins = config.bins #utils.get_adjusted_bins(config.lepton_channel, config.variable)
+    bins = config.bins#utils.get_adjusted_bins(config.lepton_channel, config.variable)
 
     ### Fit ###
     h_fit = ROOT.TH1F('h_fit', '', len(bins) - 1, bins)
@@ -601,36 +603,27 @@ def plot_plu_yields(config : SingleChannelConfig, plu_fit_results, filename : st
     if 'v3' in config.gbl.file_manager.file_path_formats[0]:
         plot.warning('master.py::plot_plu_yields() Not using v3 histograms with buggy response matrix. Using hardcoded local path!')
         temp_file_manager = utils.FileManager(
-        samples=[utils.Sample.diboson],#, utils.Sample.cw_lin, utils.Sample.cw_quad],
-        file_path_formats=['/eos/user/a/anubhav/phd/cxAOD_out_grid/hist_28July/1lep_diboson_hist.root'], # histogram with correct response matrx with correct fiducial weight 
-        lepton_channels=[1]#[0, 1, 2],
+            samples=[utils.Sample.diboson],#, utils.Sample.cw_lin, utils.Sample.cw_quad],
+            file_path_formats=['/eos/user/a/anubhav/phd/cxAOD_out_grid/hist_28July/{lep}_diboson_hist.root'],#['hists-May24/{lep}_{sample}_x_May24.hists.root'],
+            lepton_channels=[1,2]#[0, 1, 2],
         )
-        # for cw lin and quad 
-        temp_file_manager2 = utils.FileManager(
-        samples=[utils.Sample.cw_lin, utils.Sample.cw_quad],
-        file_path_formats= ['/afs/cern.ch/user/a/anubhav/private/Riley_VVsemilep/VVSemilep-scripts/ hists-May24/{lep}_{sample}_x_May24.hists.root'],
-        lepton_channels=[0,1,2]
-        )
-
     else:
         temp_file_manager = config.gbl.file_manager
     def get(sample):
         # h = config.gbl.file_manager.get_hist(config.lepton_channel, sample, '{sample}_VV{lep}_Merg_unfoldingMtx_' + variable.name)
-        h = temp_file_manager.get_hist(config.lepton_channel, sample, '{sample}_VV{lep}_Merg_unfoldingMtx_' + config.variable.name)
+        h = temp_file_manager.get_hist(config.lepton_channel, sample, '{sample}_VV{lep}_Merg_unfoldingMtx_' + config.variable.name+ '_fidWeight')
         h = plot.rebin(h.ProjectionX(), config.bins)
         return _reassign_bins(h, bins)
     h_mc = get(utils.Sample.diboson)
 
     ### EFT ###
-    # Changed file_manager to May-hist for lin and quad cw I dont have it yet 
-    temp_file_manager = temp_file_manager2 
-    cw = 0.12
-    h_cw_quad = get(utils.Sample.cw_quad)
-    h_cw_lin = get(utils.Sample.cw_lin)
-    h_cw_quad.Scale(cw**2)
-    h_cw_lin.Scale(cw)
-    h_cw_quad.Add(h_cw_lin)
-    h_cw_quad.Add(h_mc)
+    # cw = 0.12
+    # h_cw_quad = get(utils.Sample.cw_quad)
+    # h_cw_lin = get(utils.Sample.cw_lin)
+    # h_cw_quad.Scale(cw**2)
+    # h_cw_lin.Scale(cw)
+    # h_cw_quad.Add(h_cw_lin)
+    # h_cw_quad.Add(h_mc)
 
     ### Plot ###
     yield_args = dict(
@@ -645,13 +638,13 @@ def plot_plu_yields(config : SingleChannelConfig, plu_fit_results, filename : st
         xtitle=f'{config.variable:title}',
     )
     _plot_yield_comparison(**yield_args, filename=filename)
-    _plot_yield_comparison(**yield_args, h_eft=h_cw_quad, eft_legend='c_{W}^{quad}=' + f'{cw:.2f}', filename=filename + '_cw')
+    # _plot_yield_comparison(**yield_args, h_eft=h_cw_quad, eft_legend='c_{W}^{quad}=' + f'{cw:.2f}', filename=filename + '_cw')
 
     ### Save ###
     f_out = ROOT.TFile(f'{config.gbl.output_dir}/results/{config.base_name}.plu_yields.root', 'UPDATE')
     h_fit.Write('fit', ROOT.TObject.kOverwrite)
     h_mc.Write('SM', ROOT.TObject.kOverwrite)
-    h_cw_quad.Write('cWq=0.12', ROOT.TObject.kOverwrite)
+    # h_cw_quad.Write('cWq=0.12', ROOT.TObject.kOverwrite)
     plot.success(f'master.py::plot_plu_yields({config.base_name}) saved fit results to {f_out.GetName()}')
 
 
@@ -776,7 +769,8 @@ def plot_plu_fit(config : SingleChannelConfig, fit_results : dict[str, tuple[flo
     ######################################################################################
     
     ### Adjusted bins ###
-    bins = config.bins #utils.get_adjusted_bins(config.lepton_channel, config.variable)
+    bins = config.bins#utils.get_adjusted_bins(config.lepton_channel, config.variable)
+
 
     ### GPR ###
     f_gpr = ROOT.TFile(f'{config.gbl.output_dir}/gpr/gpr_{config.lepton_channel}lep_vjets_yield.root')
@@ -1916,8 +1910,8 @@ def run_gpr(channel_config : SingleChannelConfig):
             mu_ttbar=channel_config.gbl.ttbar_fitter.get_var(variation),
             mu_stop=mu_stop,
         )
+    #mu_diboson_points = [0.5,1.5] #[0.9, 0.95, 1.05, 1.1]
     mu_diboson_points = [0.9, 0.95, 1.05, 1.1]
-
     ### Summary plots ###
     def summary_actions():
         fit_config = make_config(utils.variation_nom, channel_config.gbl.mu_stop)
@@ -1981,7 +1975,8 @@ def run_gpr(channel_config : SingleChannelConfig):
     for variation_base in utils.variations_hist:
         for updown in [utils.variation_up_key, utils.variation_down_key]:
             run(variation_base + updown)
-
+    for variation_base in utils.Variation_hist_onesided:
+        run(variation_base+ utils.variation_up_key)
     ### Condor ###
     if channel_config.gbl.gpr_condor:
         condor_file.close()
@@ -2034,7 +2029,7 @@ def run_single_channel(config : SingleChannelConfig):
     Main run function for a single lepton/variable channel.
     '''
     if not config.gbl.skip_hist_gen and not config.gbl.skip_fits and not config.gbl.skip_gpr:
-        ### Generate response matricies ###
+        Generate response matricies ###
         plot.notice(f'master.py::run_channel({config.base_name}) creating response matrix')
         unfolding.main(
             file_manager=config.gbl.file_manager,
@@ -2043,35 +2038,37 @@ def run_single_channel(config : SingleChannelConfig):
             output=f'{config.gbl.output_dir}/response_matrix',
             output_plots=f'{config.gbl.output_dir}/plots',
             vars=[config.variable],
+            variation = args.Nominal or args.no_systs,
+
         )
 
-        ### Rebin reco histograms ###
+        ## Rebin reco histograms ###
         save_rebinned_histograms(config)
 
-    ### GPR fit ###
+    #GPR fit ###
     gc.collect() # Get segfaults when generating plots sometimes
     gc.disable() # https://root-forum.cern.ch/t/segfault-on-creating-canvases-and-pads-in-a-loop-with-pyroot/44729/13
     run_gpr(config) # When skip_gpr, still generates the summary plots
     gc.enable()
 
-    ### Prefit plot (pre-likelihood fits but using GPR) ###
+    # Prefit plot (pre-likelihood fits but using GPR) ###
     plot_mc_gpr_stack(
         config=config,
         subtitle=[f'{config.lepton_channel}-lepton channel prefit (post-GPR)'],
         filename=f'{config.gbl.output_dir}/plots/{config.base_name}.prefit',
     )
 
-    ### Naive yields ###
+    ## Naive yields ###
     plot_naive_bin_yields(
         config=config,
         filename=f'{config.gbl.output_dir}/plots/{config.base_name}.naive_yields'
     )
 
-    ### Diboson yield ###
+    # Diboson yield ###
     if not config.gbl.skip_direct_fit:
         run_direct_fit(config)
 
-    ### Resonance finder fits ###
+    #Resonance finder fits ###
     try: # This requires ResonanceFinder!
         ### PLU fit ###
         plu_results = run_plu(config)
@@ -2083,9 +2080,9 @@ def run_single_channel(config : SingleChannelConfig):
         ### Diboson fit ###
         run_diboson_fit(config, skip_fits=config.gbl.skip_diboson)
 
-        ### EFT fits ###
-        run_eft_fit(config, 'cw_lin', skip_fits=config.gbl.skip_eft)
-        run_eft_fit(config, 'cw_quad', skip_fits=config.gbl.skip_eft)
+        # ### EFT fits ###
+        # run_eft_fit(config, 'cw_lin', skip_fits=config.gbl.skip_eft)
+        # run_eft_fit(config, 'cw_quad', skip_fits=config.gbl.skip_eft)
 
     except Exception as e:
         plot.error(str(e))

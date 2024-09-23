@@ -111,6 +111,7 @@ class Sample:
     # List here for linting, initialized later below
     wjets : Sample = None
     zjets : Sample = None
+    vjets : Sample = None
     ttbar : Sample = None
     stop : Sample = None
     diboson : Sample = None
@@ -151,9 +152,10 @@ class Sample:
 
 Sample.wjets = Sample('wjets', 'W+jets', ['Wjets_Sherpa2211'], ['WLL', 'WHL', 'WHH', 'Wjets'])
 Sample.zjets = Sample('zjets', 'Z+jets', ['Zjets_Sherpa2211'], ['ZLL', 'ZHL', 'ZHH', 'Zjets'])
+Sample.vjets = Sample('vjets', 'V+jets', ['Wjets_MG','Zjets_MG'], ['ZLL', 'ZHL', 'ZHH', 'Zjets','WLL', 'WHL', 'WHH', 'Wjets'])
 Sample.ttbar = Sample('ttbar', 't#bar{t}', ['ttbar'], ['ttbar'])
 Sample.stop = Sample('stop', 'single top', ['stop'], ['stop'])
-Sample.diboson = Sample('diboson', 'diboson', ['diboson_Sherpa2211', 'Diboson_Sh2211'], ['SMVV'])
+Sample.diboson = Sample('diboson', 'diboson', ['diboson_Sherpa2211', 'Diboson_Sh2211'], ['SMVV', 'WW', 'WZ', 'ZZ'])
 Sample.data = Sample('data', 'data', ['data', 'data15', 'data16', 'data17', 'data18'], ['data'])
 
 Sample.cw_lin = Sample('cw_lin', 'c_{W}', ['EFT'], [f'VV{x}qq_NPSQeq1_cW_1' for x in ['vv', 'lv', 'll']])
@@ -399,6 +401,14 @@ variations_hist = [
     'SysTAUS_TRUEHADTAU_SME_TES_INSITUFIT',
     'SysTAUS_TRUEHADTAU_SME_TES_MODEL_CLOSURE',
     'SysTAUS_TRUEHADTAU_SME_TES_PHYSICSLIST',
+]
+
+Variation_hist_onesided = [
+    'SysJET_JERMC_EffectiveNP_1',
+    'SysJET_JERMC_EffectiveNP_12restTerm',
+    'SysJET_JERPD_DataVsMC_MC16',
+    'SysMET_SoftTrk_ResoPara',
+    'SysMET_SoftTrk_ResoPerp',
 ]
 
 def is_histo_syst(x):

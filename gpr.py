@@ -1806,7 +1806,7 @@ def summary_actions_from_csv(config : FitConfig):
     if config.variation == utils.variation_nom:
         histname = f'Vjets_SR_{config.var}'
     else:
-        histname = f'Vjets_SR_{config.var}__{config.variation}'
+        histname = f'Vjets_SR_{config.var}_{config.variation}'
     h = config.fit_results.get_histogram(
         **csv_base_spec, 
         fitter=config.gpr_version + '_marg_post', 

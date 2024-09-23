@@ -46,6 +46,9 @@ Where the filepath includes formatters. See [utils.FileManager]. Optionally spec
     --optimize 500,3000
 
 To run the automatic bin optimization.
+------------------------------------------------------------------------------------------
+run with --variation flag to create the unfolding matrix for all variations
+------------------------------------------------------------------------------------------
 '''
 
 from plotting import plot
@@ -59,17 +62,17 @@ import utils
 ###                               UTILITIES                                ###
 ##############################################################################
 
-def get_migration_matrix(h):
+def get_migration_matrix(h_reco):
     '''
-    Creates a migration matrix from an input 2d distribution of fid vs reco.
+    Creates a migration matrix from an input 2d distribution of fid vs reco filled with reconstructed weights 
 
     @param h
-        Input 2d histogram of fid vs reco. The y axis should be the reco distribution of
+        Input 2d histogram of fid vs reco (filled with reconstructed weights). The y axis should be the reco distribution of
         a variable, and the x axis should be the fiducial distrubtion of the same variable.
     @return
         A new TH2F with matching bins as [h]. The underflows should not be used anymore.
     '''
-    h = h.Clone()
+    h = h_reco.Clone()
 
     ### Remove negative bins ###
     tot_preclean = h.ProjectionX('_px', 1, h.GetNbinsY())
@@ -85,6 +88,7 @@ def get_migration_matrix(h):
     
     ### Normalize each column ###
     tot_fid = h.ProjectionX('_px', 1, h.GetNbinsY()) # The denominator should only be the "visible" bins
+    # here the Migration matrix is normailsed by the fiducial bin with recontructed weights 
     for x in range(1, h.GetNbinsX() + 1):
         tot = tot_fid.GetBinContent(x)
         if tot <= 0: continue
@@ -97,31 +101,37 @@ def get_migration_matrix(h):
     return h
 
 
-def get_unfolding_efficiency(h):
+def get_unfolding_efficiency(h_reco, h_fid):
     '''
     Creates an efficiency histogram from an input 2d distribution of fid vs reco.
 
-    @param h
-        Input 2d histogram of reco vs fid. The y axis should be the reco distribution of
+    @param h_reco
+        Input 2d histogram of reco vs fid filled with reco weights . The y axis should be the reco distribution of
         a variable, and the x axis should be the fiducial distrubtion of the same variable.
         The underflow of the y/x axes should be the mis-efficieny/acceptance respectively, the
         events that fall into only one of either reco/fiducial selections.
+    @param h_fid
+        Input 2d histogram of reco vs fid filled with fiducial weights. The y axis should be the reco distribution of
+        a variable, and the x axis should be the fiducial distrubtion of the same variable.
 
     @return
         A new TH1F with the bins matching the x axis bins of [h], containing the efficiency values.
     '''
-    total = h.ProjectionX()
-    eff = h.ProjectionX(h.GetName() + '_eff', 1, h.GetNbinsY()) # skip underflow bin == miseff
+  
+    h_fid_mod = h_fid.ProjectionX()
+    total = h_fid_mod # total fiducial events in each bin using fiducial weights 
+    
+    eff = h_reco.ProjectionX(h_reco.GetName() + '_eff', 1, h_reco.GetNbinsY()) # skip underflow bin == miseff
     eff.Divide(total)
     return eff
 
 
-def get_unfolding_accuracy(h):
+def get_unfolding_accuracy(h_reco):
     '''
     Creates an acceptance histogram from an input 2d distribution of fid vs reco.
 
     @param h
-        Input 2d histogram of reco vs fid. The y axis should be the reco distribution of
+        Input 2d histogram of reco vs fid filled with reco wreights . The y axis should be the reco distribution of
         a variable, and the x axis should be the fiducial distrubtion of the same variable.
         The underflow of the y/x axes should be the mis-efficieny/acceptance respectively, the
         events that fall into only one of either reco/fiducial selections.
@@ -129,21 +139,21 @@ def get_unfolding_accuracy(h):
     @return
         A new TH1F with the bins matching the y axis bins of [h], containing the acceptance values.
     '''
-    total = h.ProjectionY()
-    acc = h.ProjectionY(h.GetName() + '_acc', 1, h.GetNbinsX()) # skip underflow bin == misacc
+    total = h_reco.ProjectionY() # total reco events in each bin using reco weights
+    acc = h_reco.ProjectionY(h_reco.GetName() + '_acc', 1, h_reco.GetNbinsX()) # skip underflow bin == misacc
     acc.Divide(total)
     return acc
 
 
-def get_response_matrix(h):
+def get_response_matrix(h_reco, h_fid):
     '''
     Creates the response matrix from an input 2d distribution of fid vs reco.
 
     @see [get_migration_matrix]
     '''
-    mig_mtx = get_migration_matrix(h)
-    efficiency = get_unfolding_efficiency(h)
-    acceptance = get_unfolding_accuracy(h)
+    mig_mtx = get_migration_matrix(h_reco)
+    efficiency = get_unfolding_efficiency(h_reco, h_fid)
+    acceptance = get_unfolding_accuracy(h_reco)
 
     for y in range(1, mig_mtx.GetNbinsY() + 1):
         for x in range(1, mig_mtx.GetNbinsX() + 1):
@@ -259,7 +269,7 @@ def output_path(output_dir, sample, lepton_channel=None):
 ###                                PLOTTING                                ###
 ##############################################################################
 
-def plot_migration_matrix(mtx, var, **kwargs):
+def plot_migration_matrix(mtx_reco, var, **kwargs):
     '''
     Plots the 2D migration matrix in COLZ mode with overlaid text.
     '''
@@ -267,7 +277,7 @@ def plot_migration_matrix(mtx, var, **kwargs):
     ROOT.gStyle.SetPalette(ROOT.kAlpine)
 
     ### For plotting, hide small bins. Otherwise colz shows a sea of blue ###
-    h = get_migration_matrix(mtx)
+    h = get_migration_matrix(mtx_reco)
     for y in range(1, h.GetNbinsY() + 1):
         for x in range(1, h.GetNbinsX() + 1):
             v = h.GetBinContent(x, y)
@@ -286,12 +296,13 @@ def plot_migration_matrix(mtx, var, **kwargs):
     ROOT.gStyle.SetPalette(ROOT.kBird)
 
 
-def plot_matrix_tiered(h, var, **kwargs):
+def plot_matrix_tiered(h_reco, var, **kwargs):
     '''
     Plots the "signal histogram" of each fiducial bin
     '''
     projections = []
     labels = []
+    h = h_reco.Clone()
     for i in range(1, h.GetNbinsX() + 1): 
         projections.append([h.ProjectionY(f'p{i}', i, i)])
         labels.append(f'{int(h.GetXaxis().GetBinLowEdge(i))},{int(h.GetXaxis().GetBinLowEdge(i+1))}')
@@ -309,9 +320,9 @@ def plot_matrix_tiered(h, var, **kwargs):
     )
 
 
-def plot_eff_acc(mtx, var, **kwargs):
-    efficiency = get_unfolding_efficiency(mtx)
-    accuracy = get_unfolding_accuracy(mtx)
+def plot_eff_acc(mtx_reco,mtx_fid, var, **kwargs):
+    efficiency = get_unfolding_efficiency(mtx_reco,mtx_fid)
+    accuracy = get_unfolding_accuracy(mtx_reco)
     plot.plot_2panel([efficiency], [accuracy],
         xtitle=f'{var:title}',
         ytitle='Efficiency',
@@ -322,10 +333,11 @@ def plot_eff_acc(mtx, var, **kwargs):
     )
 
 
-def plot_fid_reco(mtx, var, **kwargs):
-    fid = mtx.ProjectionX()
-    reco = mtx.ProjectionY()
-    int_reco = mtx.ProjectionY('int_reco', 1, mtx.GetNbinsY())
+def plot_fid_reco(mtx_reco, mtx_fid, var, **kwargs):
+    
+    fid = mtx_fid.ProjectionX() 
+    reco = mtx_reco.ProjectionY() # reco distribution
+    int_reco = mtx_reco.ProjectionY('int_reco', 1, mtx_reco.GetNbinsY())
 
     fid.Scale(1, 'width')
     reco.Scale(1, 'width')
@@ -334,8 +346,8 @@ def plot_fid_reco(mtx, var, **kwargs):
     ratio = fid.Clone()
     ratio.Divide(reco)
 
-    plot.plot_ratio([fid, reco, int_reco], [ratio],
-        legend=['Fiducial', 'Detector', 'Both'],
+    plot.plot_ratio([fid, reco], [ratio],
+        legend=['Fiducial', 'Detector'],
         ytitle='Events / Bin Width',
         ytitle2='#frac{Fiducial}{Detector}',
         xtitle=f'{var:title}',
@@ -358,66 +370,99 @@ _default_vars = [
     # utils.Variable.vv_mt,
 ]
 
-def main(
+def create_response(
         file_manager : utils.FileManager,
         sample : utils.Sample, 
         lepton_channel : int, 
-        output : str = './output', 
-        output_plots : str = None,
+        rf_output_file : ROOT.TFile,
+        rf_output_path : str,
+        output_plots : str,
         vars : list[utils.Variable] = _default_vars,
         optimization_range : tuple[float, float] = None,
+        variation = False,
+        variation_name: str ="",
     ):
     '''
     Runs the full script for a single [sample] and [lepton_channel] but possible many [vars]. 
     See file docstring for more details.
 
-    @param output
-        Base directory that all outputs are added in.
-    @param optimization_range
-        Auto optimize the binning within the specified range. You probably want to limit [vars]
-        to a single variable.
+    @param file_manager: An instance of the FileManager class.
+    @param sample: The sample to be processed.
+    @param lepton_channel: The lepton channel.
+    @param rf_output_file: The ROOT TFile object to write the output to.
+    @param rf_output_path: The path to the output file.
+    @param output_plots: The base directory for all output plots.
+    @param vars: A list of Variable objects representing the variables to be processed.
+    @param optimization_range: A tuple specifying the range for auto-optimizing the binning.
+    @param variation: A boolean indicating whether variation is enabled.
+    @param variation_name: The name of the variation.
+
+    @return: The path to the output file.
     '''
-    ### Output dir ###
-    os.makedirs(output, exist_ok=True)
 
     ### Config ###
     common_subtitle = [
         '#sqrt{s}=13 TeV, 140 fb^{-1}',
         f'{lepton_channel}-lepton channel, {sample}',
     ]
-    output_plots = output_plots or output
-
-    ### Files ###    
-    rf_output_path = output_path(output, sample, lepton_channel)
-    rf_output_file = ROOT.TFile(rf_output_path, 'RECREATE')
+  
 
     ### Run ###
     for var in vars:
         ### Get base histogram ###
-        mtx = file_manager.get_hist(
+        if variation:
+            mtx_reco = file_manager.get_hist(
+                    lep=lepton_channel, 
+                    sample=sample.name, 
+                    hist_name_format= '{sample}_VV{lep}_Merg_unfoldingMtx_' + f'{var}',
+                    variation = variation_name
+                )
+        else:
+            mtx_reco = file_manager.get_hist(
             lep=lepton_channel, 
             sample=sample.name, 
-            hist_name_format='{sample}_VV{lep}_Merg_unfoldingMtx_' + f'{var}'
+            hist_name_format= '{sample}_VV{lep}_Merg_unfoldingMtx_' + f'{var}'
         )
 
+        temp_file_manager = utils.FileManager(
+        samples=[utils.Sample.diboson],
+        file_path_formats=['/eos/user/a/anubhav/phd/cxAOD_out_grid/hist_28July/{lep}_diboson_hist.root'],
+        lepton_channels=[0, 1, 2],
+        )
+        mtx_fid = temp_file_manager.get_hist(
+            lep=lepton_channel, 
+            sample=sample.name, 
+            hist_name_format='{sample}_VV{lep}_Merg_unfoldingMtx_' + f'{var}' + '_fidWeight'
+        )
+        
+        # mtx_fid = file_manager.get_hist(
+        #     lep=lepton_channel, 
+        #     sample=sample.name, 
+        #     hist_name_format='{sample}_VV{lep}_Merg_unfoldingMtx_' + f'{var}' #+'_fidWeight'
+        # )
+        
         ### Rebin ###
         if optimization_range:
-            bins = optimize_binning(mtx, optimization_range)
+            bins = optimize_binning(mtx_reco, optimization_range)
         else:
             bins = utils.get_bins(lepton_channel, var)
-        mtx = plot.rebin2d(mtx, bins, bins)
-        reponse_matrix = get_response_matrix(mtx)
+        mtx_reco = plot.rebin2d(mtx_reco, bins, bins)
+        mtx_fid = plot.rebin2d(mtx_fid, bins, bins)
+        reponse_matrix = get_response_matrix(mtx_reco,mtx_fid)
     
         ### Plot ###
-        output_plot_basepath = f'{output_plots}/{lepton_channel}lep_{var}.{sample}'
-        plot_migration_matrix(mtx, var,
+        if variation:
+            output_plot_basepath = f'{output_plots}/{lepton_channel}lep_{var}.{sample}_{variation_name}'
+        else:
+            output_plot_basepath = f'{output_plots}/{lepton_channel}lep_{var}.{sample}'
+        plot_migration_matrix(mtx_reco, var,
             filename=f'{output_plot_basepath}_migration_matrix',
             subtitle=[
                 *common_subtitle,
                 '% migration from each fiducial bin'
             ],
         )
-        plot_matrix_tiered(get_migration_matrix(mtx), var,
+        plot_matrix_tiered(get_migration_matrix(mtx_reco), var,
             filename=f'{output_plot_basepath}_migration_matrix_tiered',
             subtitle=common_subtitle,
         )
@@ -425,19 +470,22 @@ def main(
             filename=f'{output_plot_basepath}_response_matrix_tiered',
             subtitle=common_subtitle,
         )
-        plot_eff_acc(mtx, var,
+        plot_eff_acc(mtx_reco,mtx_fid, var,
             filename=f'{output_plot_basepath}_eff_acc',
             subtitle=common_subtitle,
         )
-        plot_fid_reco(mtx, var,
+        plot_fid_reco(mtx_reco,mtx_fid, var,
             filename=f'{output_plot_basepath}_fid_reco',
             subtitle=common_subtitle,
         )
         
-
+        rf_output_file.cd() #anubhav
         ### Save ###
         for x in range(1, reponse_matrix.GetNbinsX() + 1):
-            name = f'ResponseMatrix_{var}_fid' + str(x).rjust(2, '0')
+            if variation:
+                name = f'ResponseMatrix_{var}_fid' + str(x).rjust(2, '0') + '__' + variation_name
+            else:
+                name = f'ResponseMatrix_{var}_fid' + str(x).rjust(2, '0')
             p = reponse_matrix.ProjectionY(name, x, x)
             # Need to convert TH1D to TH1F for ResonanceFinder!!!! Or else it death spirals :)
             h = ROOT.TH1F(f'temp_{var}_{x}', '', 1, 0, 1)
@@ -447,6 +495,65 @@ def main(
     plot.success(f'Saved response matrix histograms to {rf_output_path}')
     return rf_output_path
 
+def main(
+    file_manager : utils.FileManager,
+        sample : utils.Sample, 
+        lepton_channel : int, 
+        output : str = './output', 
+        output_plots : str = None,
+        vars : list[utils.Variable] = _default_vars,
+        optimization_range : tuple[float, float] = None,
+        variation = False,
+    ):
+
+    ### Output dir ###
+    os.makedirs(output, exist_ok=True)
+    output_plots = output_plots or output
+
+    ### Files ###    
+    rf_output_path = output_path(output, sample, lepton_channel)
+    rf_output_file = ROOT.TFile(rf_output_path, 'RECREATE')
+
+   
+
+    
+    create_response(
+            file_manager=file_manager,
+            sample=sample, 
+            lepton_channel=lepton_channel, 
+            rf_output_file=rf_output_file,
+            output_plots = output_plots,
+            rf_output_path=rf_output_path,
+            vars=vars,
+            optimization_range=optimization_range,
+            variation=False,
+            variation_name="",
+            )
+    if variation:
+        
+        variations_list = []
+
+        for x in utils.variations_hist:
+            variations_list.append(x+ utils.variation_up_key)
+            variations_list.append(x+ utils.variation_down_key)
+        for x in utils.Variation_hist_onesided:
+            variations_list.append(x+ utils.variation_up_key)
+
+        for variation_name in variations_list:
+            create_response(
+                file_manager=file_manager,
+                sample=sample, 
+                lepton_channel=lepton_channel, 
+                rf_output_file=rf_output_file,
+                output_plots = output_plots,
+                rf_output_path=rf_output_path,
+                vars=vars,
+                optimization_range=optimization_range,
+                variation=variation,
+                variation_name=variation_name
+            )
+    
+
 
 if __name__ == "__main__":
     ### Args ###
@@ -454,21 +561,22 @@ if __name__ == "__main__":
         description="Plots the migration matrix, efficiency and fiducial accuracy. Saves the response matrix as histograms for use in ResonanceFinder.", 
         formatter_class=ArgumentDefaultsHelpFormatter
     )
-    parser.add_argument('filepath', help='Path to the CxAODReader output histograms')
+    # parser.add_argument('filepath', help='Path to the CxAODReader output histograms')
     parser.add_argument('sample', help='Sample name as in [utils.Sample]')
     parser.add_argument("lepton", type=int, choices=[0, 1, 2])
     parser.add_argument('-o', '--output', default='./output')
     parser.add_argument('--optimize', help='Automatically optimize the binning. Pass in a "min,max" range of values that the binning should cover.')
+    parser.add_argument('--variation', action='store_true', help='create the unfolding matrix for all variations')
     args = parser.parse_args()
 
     ### Files ###
     sample = utils.Sample.parse(args.sample)
     file_manager = utils.FileManager(
         samples=[sample],
-        file_path_formats=[args.filepath],
+        # file_path_formats=[args.filepath],
         lepton_channels=[args.lepton],
+        file_path_formats = ['/eos/user/a/anubhav/phd/condor_merge/{lep}_diboson_x_new.root']
     )
-
     ### Run ###
     plot.file_formats = ['png', 'pdf']
     plot.save_transparent_png = False
@@ -477,5 +585,6 @@ if __name__ == "__main__":
         sample=sample, 
         lepton_channel=args.lepton,
         output=args.output,
-        optimization_range=None if args.optimize is None else [float(x) for x in args.optimize.split(',')]
+        optimization_range=None if args.optimize is None else [float(x) for x in args.optimize.split(',')],
+        variation = args.variation # to create the unfolding matrix for all variations
     )
