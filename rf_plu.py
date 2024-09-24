@@ -49,9 +49,9 @@ def _add_plu(runner, lepton_channel, variable, region, response_matrix_path, **_
         runner.channel(region).sample(sigName).multiplyBy(poiName, 100, 0, 1e6)
         for variation in (utils.variations_hist if lepton_channel != 0 else []):
             runner.channel(region).sample(sigName).addVariation(variation)
-        for variation in (utils.Variation_hist_onesided  if lep != 0 else []): #TODO
-            runner.channel(region).sample.addOneSideVariation(variation)
-        
+        for variation in (utils.Variation_hist_onesided if lepton_channel != 0 else []):
+            runner.channel(region).sample(sigName).addVariation(variation)
+            runner.addOneSideVariation(variation)
         # adding GPR correction for signal contamination
         
         runner.defineSignal(runner.channel(region).sample(sigName), 'Unfold')
@@ -71,8 +71,10 @@ def _add_diboson(runner, lepton_channel, lumi_uncert, variable, region, hist_fil
     sample.setUseStatError(True)
     for variation in (utils.variations_hist if lepton_channel != 0 else []): # TODO
         sample.addVariation(variation)
-    for variation in (utils.Variation_hist_onesided  if lep != 0 else []): #TODO
-        sample.addOneSideVariation(variation)
+    for variation in (utils.Variation_hist_onesided if lepton_channel != 0 else []): # TODO 
+        sample.addVariation(variation)
+        runner.addOneSideVariation(variation)
+
 
     ### Add sig. contam. correction for GPR ###   
     if gpr_mu_corrs: 
@@ -100,8 +102,10 @@ def _add_eft(runner, lepton_channel, lumi_uncert, region, hist_file_format, hist
     sample.setUseStatError(True)
     for variation in (utils.variations_hist if lepton_channel != 0 else []): # TODO
         sample.addVariation(variation)
-    for variation in (utils.Variation_hist_onesided  if lep != 0 else []): #TODO
-                sample.addOneSideVariation(variation)
+    for variation in (utils.Variation_hist_onesided if lepton_channel != 0 else []): # TODO
+        sample.addVariation(variation)
+        runner.addOneSideVariation(variation)
+
 
     ### Config ###
     signal_names = ''
@@ -133,8 +137,10 @@ def _add_eft(runner, lepton_channel, lumi_uncert, region, hist_file_format, hist
         sample.setUseStatError(True)
         for variation in (utils.variations_hist if lepton_channel != 0 else []): # TODO
             sample.addVariation(variation)
-        for variation in (utils.Variation_hist_onesided  if lep != 0 else []): #TODO
-                sample.addOneSideVariation(variation)
+        for variation in (utils.Variation_hist_onesided if lepton_channel != 0 else []): # TODO
+            sample.addVariation(variation)
+            runner.addOneSideVariation(variation)
+
         
         mu_factor = RF.MultiplicativeFactor(f'mu-{operator}-quad', 1) # this is fixed by Rob's postscript in eft_quad_correction
         sample.multiplyBy(mu_factor)
@@ -223,8 +229,10 @@ def run(
             sample.setUseStatError(True)
             for variation in (utils.variations_hist if lep != 0 else []): # TODO
                 sample.addVariation(variation)
-            for variation in (utils.Variation_hist_onesided  if lep != 0 else []): #TODO
-                sample.addOneSideVariation(variation)
+            for variation in (utils.Variation_hist_onesided if lep != 0 else []): # TODO
+                sample.addVariation(variation)
+                runner.addOneSideVariation(variation)
+   
 
             ### Add stop ###
             runner.channel(region).addSample('stop', hist_file_format.format(lep=lep, sample='stop'), hist_name.format('stop'))
@@ -237,8 +245,11 @@ def run(
             sample.setUseStatError(True)
             for variation in (utils.variations_hist if lep != 0 else []): # TODO
                 sample.addVariation(variation)
-            for variation in (utils.Variation_hist_onesided  if lep != 0 else []): #TODO
-                sample.addOneSideVariation(variation)
+            for variation in (utils.Variation_hist_onesided if lep != 0 else []): # TODO
+                sample.addVariation(variation)
+                runner.addOneSideVariation(variation)
+
+
 
             ### Add GPR ###
             runner.channel(region).addSample('vjets', f'{output_dir}/gpr/gpr_{lep}lep_vjets_yield.root', 'Vjets_SR_' + variable.name)
@@ -249,8 +260,11 @@ def run(
                     sample.addVariation(variation)
                 for variation in (utils.variations_hist if lep != 0 else []): # TODO
                     sample.addVariation(variation)
-                for variation in (utils.Variation_hist_onesided  if lep != 0 else []): #TODO
-                    sample.addOneSideVariation(variation)
+                for variation in (utils.Variation_hist_onesided if lep != 0 else []): # TODO
+                    sample.addVariation(variation)
+                    runner.addOneSideVariation(variation)
+                    
+
 
             ### Mode switch (signals and diboson background) ###
             common_args = {
